@@ -18,3 +18,12 @@ repos = [name for name in os.listdir(git_dir)
          if os.path.isdir(os.path.join(git_dir, name)) and
          os.path.exists(os.path.join(git_dir, name, ".git"))
 ]
+
+# Imprime en pantalla los repositorios encontrados
+if repos:
+    print("Found the following GitHub repositories: ")
+    for idx, repo in enumerate(repos, 1):
+        print(f"{idx}, {repo}")
+else:
+    print("No hay repositorios seleccionados")
+    print("Por favor, seleccione un repositorio valido")
