@@ -7,6 +7,7 @@
 # 5. pip show flask
 # 6. python app.py
 
+# PRIMER PARTE DEL CRUD
 
 from flask import Flask, jsonify, request
 
