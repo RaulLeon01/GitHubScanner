@@ -247,6 +247,14 @@
         "MAC": "AA:BB:CC:DD:EE:FF",
         "Lvl": 1
       }
+    },
+    {
+      "PC10": {
+        "ID": "KSZ488",
+        "IP": "192.168.6.11",
+        "MAC": "AA:BB:AA:AA:EE:AA",
+        "Lvl": 2
+      }
     }
   ]
 }
