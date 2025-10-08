@@ -6,81 +6,119 @@
 # 5. pip show flask
 # 6. python app.py
 
-
 from flask import Flask, jsonify, request
+import json
 import random
 import string
+import os
 
 app = Flask(__name__)
 
-# --- DICCIONARIO ORIGINAL DE DISPOSITIVOS ---
-dispositivos_data = {
-    "dispositivos": [
-        { "Router1": { "ID": "1", "IP": "192.168.0.1", "MAC": "00:1A:2B:3C:4D:01", "Lvl": 3 } },
-        { "Switch1": { "ID": "2", "IP": "192.168.0.2", "MAC": "00:1A:2B:3C:4D:02", "Lvl": 2 } },
-        { "PC1": { "ID": "3", "IP": "192.168.0.10", "MAC": "00:1A:2B:3C:4D:03", "Lvl": 1 } }
-    ]
-}
+# Ruta del archivo JSON
+JSON_PATH = "archivo.json"
 
-# --- FUNCIÓN AUXILIAR PARA CREAR ID ALEATORIO ---
-def generar_id():
-    return ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))  # ej: 'A9K4T2'
+# --------------------------------------------------------
+# Función auxiliar para cargar y guardar el archivo JSON
+# --------------------------------------------------------
+def cargar_json():
+    if not os.path.exists(JSON_PATH):
+        return {"dispositivos": []}
+    with open(JSON_PATH, "r", encoding="utf-8") as file:
+        return json.load(file)
 
-# --- 1️⃣ AGREGAR NUEVO DISPOSITIVO ---
+def guardar_json(data):
+    with open(JSON_PATH, "w", encoding="utf-8") as file:
+        json.dump(data, file, indent=2, ensure_ascii=False)
+
+# --------------------------------------------------------
+# Agregar un nuevo dispositivo con ID alfanumérico random
+# --------------------------------------------------------
 @app.route('/agregar', methods=['POST'])
 def agregar_dispositivo():
-    data = request.get_json()
+    data = cargar_json()
+    dispositivos = data["dispositivos"]
 
-    nombre = data.get("nombre")
-    ip = data.get("IP")
-    mac = data.get("MAC")
-    lvl = data.get("Lvl")
+    nuevo_dispositivo = request.json  # Ejemplo: {"nombre": "PC9", "IP": "192.168.5.10", "MAC": "00:1A:2B:3C:4D:2A", "Lvl": 1}
 
-    if not nombre or not ip or not mac or lvl is None:
-        return jsonify({"error": "Faltan datos"}), 400
+    if not nuevo_dispositivo or "nombre" not in nuevo_dispositivo:
+        return jsonify({"error": "Debes enviar al menos el nombre del dispositivo."}), 400
 
-    nuevo_id = generar_id()
-    nuevo_dispositivo = {nombre: {"ID": nuevo_id, "IP": ip, "MAC": mac, "Lvl": lvl}}
-    dispositivos_data["dispositivos"].append(nuevo_dispositivo)
+    nombre = nuevo_dispositivo["nombre"]
 
-    return jsonify({"mensaje": "Dispositivo agregado correctamente", "dispositivo": nuevo_dispositivo}), 201
+    # ID alfanumérico random de 6 caracteres
+    id_random = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
+
+    # Crear el nuevo registro
+    nuevo = {
+        nombre: {
+            "ID": id_random,
+            "IP": nuevo_dispositivo.get("IP", "0.0.0.0"),
+            "MAC": nuevo_dispositivo.get("MAC", "00:00:00:00:00:00"),
+            "Lvl": nuevo_dispositivo.get("Lvl", 1)
+        }
+    }
+
+    dispositivos.append(nuevo)
+    guardar_json(data)
+
+    return jsonify({"mensaje": "Dispositivo agregado exitosamente", "dispositivo": nuevo}), 201
 
 
-# --- 2️⃣ ELIMINAR DISPOSITIVO POR NOMBRE ---
+# --------------------------------------------------------
+# Borrar un dispositivo por nombre
+# --------------------------------------------------------
 @app.route('/eliminar/<nombre>', methods=['DELETE'])
 def eliminar_dispositivo(nombre):
-    for dispositivo in dispositivos_data["dispositivos"]:
+    data = cargar_json()
+    dispositivos = data["dispositivos"]
+
+    # Buscar y eliminar por nombre
+    eliminado = False
+    for dispositivo in dispositivos:
         if nombre in dispositivo:
-            dispositivos_data["dispositivos"].remove(dispositivo)
-            return jsonify({"mensaje": f"Dispositivo '{nombre}' eliminado correctamente"}), 200
+            dispositivos.remove(dispositivo)
+            eliminado = True
+            break
 
-    return jsonify({"error": f"Dispositivo '{nombre}' no encontrado"}), 404
+    if not eliminado:
+        return jsonify({"error": f"No se encontró el dispositivo '{nombre}'"}), 404
+
+    guardar_json(data)
+    return jsonify({"mensaje": f"Dispositivo '{nombre}' eliminado correctamente."})
 
 
-# --- 3️⃣ MODIFICAR INFORMACIÓN DE UN DISPOSITIVO ---
+# --------------------------------------------------------
+# Modificar información de un dispositivo existente
+# --------------------------------------------------------
 @app.route('/modificar/<nombre>', methods=['PUT'])
 def modificar_dispositivo(nombre):
-    data = request.get_json()
+    data = cargar_json()
+    dispositivos = data["dispositivos"]
+    cambios = request.json  # Ejemplo: {"IP": "192.168.5.5", "Lvl": 2}
 
-    for dispositivo in dispositivos_data["dispositivos"]:
+    for dispositivo in dispositivos:
         if nombre in dispositivo:
-            if "IP" in data:
-                dispositivo[nombre]["IP"] = data["IP"]
-            if "MAC" in data:
-                dispositivo[nombre]["MAC"] = data["MAC"]
-            if "Lvl" in data:
-                dispositivo[nombre]["Lvl"] = data["Lvl"]
-            return jsonify({"mensaje": f"Dispositivo '{nombre}' modificado correctamente", "nuevo": dispositivo}), 200
+            # Actualiza los campos enviados
+            for clave, valor in cambios.items():
+                if clave in dispositivo[nombre]:
+                    dispositivo[nombre][clave] = valor
+            guardar_json(data)
+            return jsonify({"mensaje": f"Dispositivo '{nombre}' actualizado correctamente.", "nuevo_valor": dispositivo[nombre]})
 
-    return jsonify({"error": f"Dispositivo '{nombre}' no encontrado"}), 404
+    return jsonify({"error": f"No se encontró el dispositivo '{nombre}'"}), 404
 
 
-# --- LISTAR TODOS LOS DISPOSITIVOS ---
-@app.route('/listar', methods=['GET'])
+# --------------------------------------------------------
+# (Opcional) Ver todos los dispositivos
+# --------------------------------------------------------
+@app.route('/dispositivos', methods=['GET'])
 def listar_dispositivos():
-    return jsonify(dispositivos_data), 200
+    data = cargar_json()
+    return jsonify(data)
 
 
-# --- EJECUTAR SERVIDOR ---
+# --------------------------------------------------------
+# Ejecutar servidor Flask
+# --------------------------------------------------------
 if __name__ == '__main__':
     app.run(debug=True)
